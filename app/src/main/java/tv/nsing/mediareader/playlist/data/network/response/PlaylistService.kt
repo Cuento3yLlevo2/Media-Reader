@@ -1,19 +1,27 @@
 package tv.nsing.mediareader.playlist.data.network.response
 
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import okhttp3.ResponseBody
+import retrofit2.Call
+import timber.log.Timber
 import tv.nsing.mediareader.playlist.data.network.PlaylistClient
+import tv.nsing.mediareader.playlist.data.network.NetworkResult
 import javax.inject.Inject
 
 class PlaylistService @Inject constructor(private val playlistClient: PlaylistClient) {
 
-    suspend fun getMedia(): Boolean {
-        return withContext(Dispatchers.IO) {
-            val respose = playlistClient.getMedia()
-            // todo handle this and save locally
-
-            // true is saved correctly
-            true
+    fun downloadMediaZipFile(): NetworkResult<Call<ResponseBody>> {
+        return try {
+            NetworkResult.Success(
+                playlistClient.downloadMediaZipFile()
+            )
+        } catch (ex: Exception) {
+            Timber.tag(TAG).e(ex.localizedMessage)
+            NetworkResult.Error(ex.localizedMessage)
         }
     }
+
+    companion object {
+        const val TAG = "PlaylistService"
+    }
+
 }

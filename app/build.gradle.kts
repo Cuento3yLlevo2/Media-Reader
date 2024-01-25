@@ -65,6 +65,8 @@ dependencies {
     implementation("androidx.compose.material3:material3")
     // live data for Compose
     implementation("androidx.compose.runtime:runtime-livedata")
+    implementation("androidx.work:work-runtime-ktx:2.9.0")
+
 
 
     testImplementation("junit:junit:4.13.2")
@@ -82,6 +84,17 @@ dependencies {
     // DI
     implementation("com.google.dagger:hilt-android:2.48")
     kapt("com.google.dagger:hilt-android-compiler:2.48")
+
+    // coil
+    implementation("io.coil-kt:coil-compose:2.5.0")
+
+    // media3
+    implementation("androidx.media3:media3-exoplayer:1.2.1")
+    implementation("androidx.media3:media3-exoplayer-dash:1.2.1")
+    implementation("androidx.media3:media3-ui:1.2.1")
+
+    // timber
+    implementation("com.jakewharton.timber:timber:5.0.1")
 }
 
 kotlin {

@@ -8,6 +8,6 @@ class PlaylistRepository @Inject constructor(private val playlistService: Playli
     suspend fun getMedia() {
 
         // if media is not downloaded
-        playlistService.getMedia()
+        //playlistService.getMedia()
     }
 }

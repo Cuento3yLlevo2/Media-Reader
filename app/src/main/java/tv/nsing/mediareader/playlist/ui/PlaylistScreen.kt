@@ -29,6 +29,8 @@ fun PlaylistScreen(playlistViewModel: PlaylistViewModel) {
         }
     }
 
+    playlistViewModel.checkMedia()
+
     when (uiState) {
         is PlaylistUiState.Error -> {
 
