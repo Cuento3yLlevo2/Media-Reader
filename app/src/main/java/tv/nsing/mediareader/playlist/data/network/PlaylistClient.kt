@@ -14,7 +14,4 @@ interface PlaylistClient {
     @Streaming
     fun downloadMediaZipFile(): Call<ResponseBody>
 
-//    @Streaming
-//    @GET("media/NSIGN_Prueba_Android.zip")
-//    suspend fun downloadMediaZipFile(): ResponseBody
 }

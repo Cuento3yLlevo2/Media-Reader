@@ -1,88 +1,92 @@
 package tv.nsing.mediareader
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
-import androidx.compose.material3.Button
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.runtime.derivedStateOf
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.livedata.observeAsState
-import androidx.compose.runtime.remember
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
-import androidx.work.ExistingWorkPolicy
-import androidx.work.WorkInfo
-import androidx.work.WorkManager
-import tv.nsing.mediareader.playlist.ui.PlaylistScreen
-import tv.nsing.mediareader.playlist.ui.PlaylistViewModel
-import tv.nsing.mediareader.playlist.worker.DownloadWorker
-import tv.nsing.mediareader.playlist.worker.WorkerKeys
+import androidx.annotation.RequiresApi
+import androidx.compose.runtime.Composable
+import androidx.core.content.ContextCompat
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+import dagger.hilt.android.AndroidEntryPoint
+import tv.nsing.mediareader.core.Constants.EVENTS_JSON_FILE_NAME
+import tv.nsing.mediareader.core.Constants.RESOURCE_DIRECTORY_NAME
+import tv.nsing.mediareader.playlist.ui.playlist.PlaylistScreen
+import tv.nsing.mediareader.playlist.ui.playlist.PlaylistViewModel
+import tv.nsing.mediareader.playlist.ui.Routes
+import tv.nsing.mediareader.playlist.ui.download.DownloadScreen
+import tv.nsing.mediareader.playlist.ui.download.DownloadViewModel
 import tv.nsing.mediareader.ui.theme.MediaReaderTheme
+import java.io.File
 
+@AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
     private val playlistViewModel: PlaylistViewModel by viewModels()
+    private val downloadViewModel: DownloadViewModel by viewModels()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        val downloadRequest = DownloadWorker.createWorkRequest()
-        val workManager = WorkManager.getInstance(applicationContext)
-
+        if (Build.VERSION.SDK_INT > 32) {
+            checkNotificationPermission()
+        }
 
         setContent {
             MediaReaderTheme {
 
-                val workInfos =
-                    workManager.getWorkInfosForUniqueWorkLiveData(DownloadWorker.WORK_NAME)
-                        .observeAsState()
-                        .value
+                val navigationController = rememberNavController()
 
-                val downloadInfo = remember(key1 = workInfos) {
-                    workInfos?.find { it.id == downloadRequest.id }
-                }
+                val startDestination = if (mediaFileExists()) { Routes.PlaylistScreen.route } else { Routes.DownloadScreen.route }
 
-                val mediaFolderPath by remember { derivedStateOf {
-                    val downloadPath = downloadInfo?.outputData?.getString(WorkerKeys.MEDIA_URI)
-                }
-                }
-
-
-
-                Column {
-                    Button(onClick = {
-                        workManager.beginUniqueWork(
-                            DownloadWorker.WORK_NAME,
-                            ExistingWorkPolicy.KEEP,
-                            downloadRequest
-                        ).enqueue()
-                    }, enabled = downloadInfo?.state != WorkInfo.State.RUNNING
-                    ) {
-                        Text("start work")
+                NavHost(
+                    navController = navigationController,
+                    startDestination = startDestination
+                ) {
+                    composable(Routes.DownloadScreen.route) {
+                        DownloadScreen(navigationController, downloadViewModel)
                     }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    when(downloadInfo?.state) {
-                        WorkInfo.State.ENQUEUED -> Text(text = "ENQUEUED")
-                        WorkInfo.State.RUNNING -> Text(text = "RUNNING")
-                        WorkInfo.State.SUCCEEDED -> Text(text = "SUCCEEDED")
-                        WorkInfo.State.FAILED -> Text(text = "FAILED")
-                        WorkInfo.State.BLOCKED -> Text(text = "BLOCKED")
-                        WorkInfo.State.CANCELLED -> Text(text = "CANCELLED")
-                        null -> {
-
-                        }
+                    composable(Routes.PlaylistScreen.route) {
+                        PlaylistScreen(playlistViewModel)
                     }
                 }
-
-                // PlaylistScreen(playlistViewModel)
             }
         }
     }
+
+    @Composable
+    private fun mediaFileExists(): Boolean {
+        // Create File object with the file path
+        val file =
+            File(this.applicationInfo.dataDir + File.separator + RESOURCE_DIRECTORY_NAME + File.separator + EVENTS_JSON_FILE_NAME)
+
+        // Check if file exists
+        return file.exists()
+    }
+
+    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
+    fun checkNotificationPermission() {
+        val permission = Manifest.permission.POST_NOTIFICATIONS
+        if (ContextCompat.checkSelfPermission(
+                this,
+                permission
+            ) == PackageManager.PERMISSION_GRANTED
+        ) {
+            // do nothing
+        } else {
+            requestNotificationPermission.launch(permission)
+        }
+    }
+
+    private val requestNotificationPermission =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
+            if (!isGranted) Toast.makeText(this, "permission denied", Toast.LENGTH_LONG).show()
+        }
 }

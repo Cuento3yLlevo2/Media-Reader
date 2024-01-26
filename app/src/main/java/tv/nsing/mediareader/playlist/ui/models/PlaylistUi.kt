@@ -1,4 +1,4 @@
-package tv.nsing.mediareader.playlist.ui.model
+package tv.nsing.mediareader.playlist.ui.models
 
 data class PlaylistUi(
     val id: String,

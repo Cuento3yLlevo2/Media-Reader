@@ -3,9 +3,11 @@ package tv.nsing.mediareader.playlist.worker
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
+import android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
 import android.os.Build
 import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
+import androidx.hilt.work.HiltWorker
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
 import androidx.work.Data
@@ -15,16 +17,15 @@ import androidx.work.OneTimeWorkRequest
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
-import com.google.gson.GsonBuilder
+import dagger.assisted.Assisted
+import dagger.assisted.AssistedInject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.ResponseBody
-import retrofit2.Retrofit
-import retrofit2.converter.gson.GsonConverterFactory
 import timber.log.Timber
 import tv.nsing.mediareader.R
-import tv.nsing.mediareader.playlist.data.network.NetworkResult
-import tv.nsing.mediareader.playlist.data.network.PlaylistClient
+import tv.nsing.mediareader.core.Constants.RESOURCE_DIRECTORY_NAME
+import tv.nsing.mediareader.playlist.data.ResultWrapper
 import tv.nsing.mediareader.playlist.data.network.response.PlaylistService
 import tv.nsing.mediareader.playlist.worker.WorkerKeys.ERROR_MSG
 import tv.nsing.mediareader.playlist.worker.WorkerKeys.MEDIA_URI
@@ -36,40 +37,27 @@ import java.net.ConnectException
 import java.net.UnknownHostException
 import java.util.zip.ZipFile
 import java.util.zip.ZipInputStream
-import javax.inject.Inject
 import kotlin.random.Random
 
-
-class DownloadWorker (
-    private val context: Context,
-    private val workerParameters: WorkerParameters
+@HiltWorker
+class DownloadWorker @AssistedInject constructor(
+    @Assisted private val playlistService: PlaylistService,
+    @Assisted private val context: Context,
+    @Assisted private val workerParameters: WorkerParameters,
 ) : CoroutineWorker(context, workerParameters) {
 
     private var appDirectory: String? = null
-    private lateinit var playlistService: PlaylistService
-
-    @Inject
-    lateinit var playlistClient: PlaylistClient
 
     override suspend fun doWork(): Result {
-        // startForegroundService()
-
-        val gson = GsonBuilder()
-            .setLenient()
-            .create()
+        startForegroundService()
 
         appDirectory = context.applicationInfo.dataDir
-        playlistService = PlaylistService(
-            Retrofit.Builder()
-            .baseUrl("https://media.nsign.tv/")
-            .addConverterFactory(GsonConverterFactory.create(gson))
-            .build().create(PlaylistClient::class.java))
 
         Timber.tag(TAG).i("------------------------------")
         Timber.tag(TAG).i("workerID: $id")
 
         when (val result = playlistService.downloadMediaZipFile()) {
-            is NetworkResult.Error -> {
+            is ResultWrapper.Error -> {
                 result.throwable?.let { throwable ->
                     if (throwable is UnknownHostException || throwable is ConnectException) {
                         // It was a network problem: there is not Internet connection, or this is not active
@@ -82,7 +70,13 @@ class DownloadWorker (
                 } ?: Timber.tag(TAG).e("There was an error saving the file - ${result.message}")
                 return Result.failure(dataOnFailure("There was a network error on downloading the file"))
             }
-            is NetworkResult.Success -> {
+
+            is ResultWrapper.Success -> {
+
+                setProgress(
+                    workDataOf(WorkerKeys.DOWNLOAD_STATE to "Downloading media file")
+                )
+
                 val response = result.value.execute()
 
                 Timber.tag(TAG).i("downloading zip")
@@ -112,13 +106,14 @@ class DownloadWorker (
                                 )
 
                                 if (fileSize == 0L) {
-                                    Timber.tag(TAG).e("There was an error saving the file - fileSize == 0L")
+                                    Timber.tag(TAG)
+                                        .e("There was an error saving the file - fileSize == 0L")
                                     return@withContext Result.failure(dataOnFailure("here was an error saving the file"))
                                 } else {
                                     // todo save on database
                                 }
 
-                                return@withContext Result.success(dataOnSuccess(appDirectory + File.separator + RESOURCE_DIRECTORY))
+                                return@withContext Result.success(dataOnSuccess(appDirectory + File.separator + RESOURCE_DIRECTORY_NAME))
 
                             }
                         } ?: run {
@@ -132,11 +127,15 @@ class DownloadWorker (
         }
     }
 
-    private fun saveResource(responseBody: ResponseBody): Long {
+    private suspend fun saveResource(responseBody: ResponseBody): Long {
         try {
 
+            setProgress(
+                workDataOf(WorkerKeys.DOWNLOAD_STATE to "Saving zip file")
+            )
+
             val resourceDirectory = File(
-                appDirectory + File.separator + RESOURCE_DIRECTORY
+                appDirectory + File.separator + RESOURCE_DIRECTORY_NAME
             )
 
             // This line creates the "resource" folder
@@ -149,7 +148,7 @@ class DownloadWorker (
 
             responseBody.byteStream().use { inputStream ->
                 FileOutputStream(
-                    resourceDirectory.toString() + File.separator + RESOURCE_DIRECTORY + ".zip"
+                    resourceDirectory.toString() + File.separator + RESOURCE_DIRECTORY_NAME + ".zip"
                 ).use { outputStream ->
                     while (true) {
                         val read = inputStream.read(fileReader)
@@ -163,8 +162,13 @@ class DownloadWorker (
 
                     // to unzip the file
                     val zipFile = File(
-                        resourceDirectory.toString() + File.separator + RESOURCE_DIRECTORY + ".zip"
+                        resourceDirectory.toString() + File.separator + RESOURCE_DIRECTORY_NAME + ".zip"
                     )
+
+                    setProgress(
+                        workDataOf(WorkerKeys.DOWNLOAD_STATE to "Unzipping resources...")
+                    )
+
                     fileSizeDownloaded = unZipFile(zipFile, resourceDirectory)
                 }
             }
@@ -210,7 +214,7 @@ class DownloadWorker (
                         }
                     }
 
-                    Timber.tag(TAG).i("fileSizeDownloaded $fileSizeDownloaded")
+                    Timber.tag(TAG).i("Unzipping resources $fileSizeDownloaded")
                 }
             }
         }
@@ -218,25 +222,39 @@ class DownloadWorker (
     }
 
     private suspend fun startForegroundService() {
-        setForeground(
-            ForegroundInfo(
-                Random.nextInt(),
-                NotificationCompat.Builder(context, CHANNEL_ID)
-                    .setSmallIcon(R.drawable.ic_launcher_foreground)
-                    .setContentText("Downloading...")
-                    .setContentTitle("Download in progress")
-                    .build()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            setForeground(
+                ForegroundInfo(
+                    Random.nextInt(),
+                    NotificationCompat.Builder(context, CHANNEL_ID)
+                        .setSmallIcon(R.drawable.ic_launcher_foreground)
+                        .setContentText("Downloading...")
+                        .setContentTitle("Download in progress")
+                        .build(),
+                    FOREGROUND_SERVICE_TYPE_DATA_SYNC
+                )
             )
-        )
+        } else {
+            setForeground(
+                ForegroundInfo(
+                    Random.nextInt(),
+                    NotificationCompat.Builder(context, CHANNEL_ID)
+                        .setSmallIcon(R.drawable.ic_launcher_foreground)
+                        .setContentText("Downloading...")
+                        .setContentTitle("Download in progress")
+                        .build()
+                )
+            )
+        }
     }
 
-    private fun dataOnFailure(error : String): Data {
+    private fun dataOnFailure(error: String): Data {
         return workDataOf(
             ERROR_MSG to error,
         )
     }
 
-    private fun dataOnSuccess(uri : String): Data {
+    private fun dataOnSuccess(uri: String): Data {
         return workDataOf(
             MEDIA_URI to uri,
         )
@@ -249,8 +267,6 @@ class DownloadWorker (
         private const val CHANNEL_NAME = "Media Downloader"
         private const val CHANNEL_DESCRIPTION = "Worker that downloads media files"
 
-        private const val RESOURCE_DIRECTORY = "media"
-
         @RequiresApi(Build.VERSION_CODES.O)
         fun getNotificationChannel(): NotificationChannel {
             val channel = NotificationChannel(
@@ -262,6 +278,7 @@ class DownloadWorker (
             channel.description = CHANNEL_DESCRIPTION
             return channel
         }
+
         fun createWorkRequest(
         ): OneTimeWorkRequest {
             val constraints = Constraints.Builder().setRequiresStorageNotLow(true)

@@ -1,5 +1,7 @@
 package tv.nsing.mediareader.core.di
 
+import com.google.gson.Gson
+import com.google.gson.GsonBuilder
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -19,7 +21,10 @@ class NetworkModule {
     fun provideRetrofit() : Retrofit {
         return Retrofit.Builder()
             .baseUrl("https://media.nsign.tv/")
-            .addConverterFactory(GsonConverterFactory.create())
+            .addConverterFactory(GsonConverterFactory.create(
+                GsonBuilder()
+                .setLenient()
+                .create()))
             .build()
     }
 

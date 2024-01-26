@@ -1,4 +1,4 @@
-package tv.nsing.mediareader.playlist.ui.model
+package tv.nsing.mediareader.playlist.ui.models
 
 import android.net.Uri
 import androidx.media3.common.MediaItem
