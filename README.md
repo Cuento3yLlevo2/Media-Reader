@@ -5,8 +5,8 @@ Compose app that creates a number playlist of media content (Images and videos) 
 ## How it works 👣
 
 - If haven't yet. the app will start downloading the zip file, unzipping and saving the data in local storage, asynchronously using a WorkManager for the job. 
-- If the data is downloaded usefully it will map the json file to process the given playlist instructions.   
-- Having the playlist instructions define it will generate the views for the playlist using Composable views in a loop.
+- If the data is downloaded successfully it will map the json file to process the given playlist instructions arranging the screen resolution and the playlist's resources zone position in the screen for the device current screen size.   
+- Having the playlist instructions define it will generate the views for the playlist using Composable views in a loop switching between media and playlist when needed.
 
 ## Features 🎨
 
