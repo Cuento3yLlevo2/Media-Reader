@@ -4,33 +4,34 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.os.PowerManager
+import android.view.WindowManager
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.activity.viewModels
 import androidx.annotation.RequiresApi
 import androidx.compose.runtime.Composable
 import androidx.core.content.ContextCompat
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import dagger.hilt.android.AndroidEntryPoint
 import tv.nsing.mediareader.core.Constants.EVENTS_JSON_FILE_NAME
 import tv.nsing.mediareader.core.Constants.RESOURCE_DIRECTORY_NAME
-import tv.nsing.mediareader.playlist.ui.playlist.PlaylistScreen
-import tv.nsing.mediareader.playlist.ui.playlist.PlaylistViewModel
 import tv.nsing.mediareader.playlist.ui.Routes
 import tv.nsing.mediareader.playlist.ui.download.DownloadScreen
 import tv.nsing.mediareader.playlist.ui.download.DownloadViewModel
+import tv.nsing.mediareader.playlist.ui.playlist.PlaylistScreen
+import tv.nsing.mediareader.playlist.ui.playlist.PlaylistViewModel
 import tv.nsing.mediareader.ui.theme.MediaReaderTheme
 import java.io.File
+
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
-    private val playlistViewModel: PlaylistViewModel by viewModels()
-    private val downloadViewModel: DownloadViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -38,6 +39,8 @@ class MainActivity : ComponentActivity() {
         if (Build.VERSION.SDK_INT > 32) {
             checkNotificationPermission()
         }
+
+
 
         setContent {
             MediaReaderTheme {
@@ -51,14 +54,16 @@ class MainActivity : ComponentActivity() {
                     startDestination = startDestination
                 ) {
                     composable(Routes.DownloadScreen.route) {
-                        DownloadScreen(navigationController, downloadViewModel)
+                        DownloadScreen(navigationController, downloadViewModel = hiltViewModel<DownloadViewModel>())
                     }
                     composable(Routes.PlaylistScreen.route) {
-                        PlaylistScreen(playlistViewModel)
+                        PlaylistScreen(playlistViewModel = hiltViewModel<PlaylistViewModel>())
                     }
                 }
             }
         }
+
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     }
 
     @Composable

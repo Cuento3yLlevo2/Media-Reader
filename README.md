@@ -15,3 +15,9 @@ Compose app that creates a number playlist of media content (Images and videos) 
 - Handles unexpected errors safety.
 - Uses dagger hilt DI. 
 - MVVM & clean architecture
+- Uses Coil for image loading
+- Uses Media3 library for video reproduction
+
+## Limitations 
+
+- It won't be able to reproduce two video resources simultaneously 
